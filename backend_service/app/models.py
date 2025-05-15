@@ -57,7 +57,19 @@ class User(AbstractUser):
     type = models.CharField(
         verbose_name='Тип пользователя',
         choices=USER_TYPE_CHOICES,
-        max_length=5, default='buyer'
+        max_length=20, default='buyer'
+    )
+
+    groups = models.ManyToManyField(
+        "auth.Group",
+        related_name='custom_user_set',
+        blank=True,
+    )
+    
+    user_permissions = models.ManyToManyField(
+        "auth.Permission",
+        related_name='custom_user_permissions_set',
+        blank=True,
     )
 
     def __str__(self):
@@ -110,9 +122,9 @@ class Category(models.Model):
 
 class Product(models.Model):
     name = models.CharField(verbose_name='Название', max_length=40)
-    category = models.ForeignKey(
+    categories = models.ForeignKey(
         Category,
-        verbose_name='Категория',
+        verbose_name='Категории',
         related_name='products',
         blank=True,
         on_delete=models.CASCADE
