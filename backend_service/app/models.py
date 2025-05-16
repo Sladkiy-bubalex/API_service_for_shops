@@ -59,7 +59,6 @@ class User(AbstractUser):
         choices=USER_TYPE_CHOICES,
         max_length=20, default='buyer'
     )
-
     groups = models.ManyToManyField(
         "auth.Group",
         related_name='custom_user_set',

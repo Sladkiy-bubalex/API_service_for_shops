@@ -1,8 +1,12 @@
 import json
+from django.contrib.auth.password_validation import validate_password
 from rest_framework.request import Request
 from django.http import JsonResponse
 from rest_framework.views import APIView
-from app.models import Shop, Category, Product, ProductInfo, Parameter, ProductParameter
+from rest_framework.generics import CreateAPIView
+from app.models import Shop, Category, Product, ProductInfo, Parameter, ProductParameter, User
+from app.serializers import RegisterUserSerializer
+from rest_framework.exceptions import ValidationError
 
 
 class ImportItemView(APIView):
@@ -54,9 +58,35 @@ class ImportItemView(APIView):
                         value=value
                     )
                 
-            return JsonResponse({"Status": "Успешно"}, status=200)
+            return JsonResponse({"message": "Успешно"}, status=200)
         else:
             return JsonResponse({"Error": "Файл не загружен"}, status=400)
 
 
+class RegisterView(CreateAPIView):
+    serializer_class = RegisterUserSerializer
 
+    def post(self, request):
+        # Проверка пароля.
+        try:
+            validate_password(request.data["password"])
+        except ValidationError as e:
+            return JsonResponse({"Error": f"Ошибка проверка пароля: {e}"}, status=400)
+
+        # Проверка входящих данных и последующее сохрание в БД.
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid():
+            user = User(
+                email=serializer.validated_data["email"],
+                first_name=serializer.validated_data.get("first_name"),
+                last_name=serializer.validated_data.get("last_name"),
+                username=serializer.validated_data["username"],
+                type=serializer.validated_data["type"],
+                company=request.data.get("company"),
+                position=request.data.get("position")
+            )
+            user.set_password(serializer.validated_data["password"])  # Хэшируем пароль
+            user.save()
+            return JsonResponse({"message": "Вы успешно зарегистрированы!"}, status=201)
+
+        return JsonResponse({"Errors": serializer.errors}, status=400)
