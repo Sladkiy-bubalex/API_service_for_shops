@@ -1,5 +1,7 @@
+import jwt
+from datetime import datetime, timedelta
 from django.db import models
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, BaseUserManager, PermissionsMixin
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.validators import UnicodeUsernameValidator
 
@@ -20,23 +22,47 @@ USER_TYPE_CHOICES = (
 
 )
 
-class User(AbstractUser):
-    USERNAME_FIELD = 'email'
-    email = models.EmailField(_('email address'), unique=True)
-    company = models.CharField(
-        verbose_name='Компания',
-        max_length=40,
-        blank=True
-    )
-    position = models.CharField(
-        verbose_name='Должность',
-        max_length=40,
-        blank=True
-    )
+class UserManager(BaseUserManager):
+
+    """Кастомный менеджер для модели пользователя"""
+    def create_user(self, username, email, password=None):
+        """ Создает и возвращает пользователя с email, паролем и именем. """
+        if username is None:
+            raise TypeError('Users must have a username.')
+
+        if email is None:
+            raise TypeError('Users must have an email address.')
+
+        user = self.model(username=username, email=self.normalize_email(email))
+        user.set_password(password)
+        user.save()
+
+        return user
+
+    def create_superuser(self, username, email, password):
+        """ Создает и возввращет пользователя с привилегиями суперадмина. """
+        if password is None:
+            raise TypeError('Superusers must have a password.')
+
+        user = self.create_user(username, email, password)
+        user.is_superuser = True
+        user.is_staff = True
+        user.save()
+
+        return user
+
+class User(AbstractUser, PermissionsMixin):
+    
+    """Кастомная модель пользователя"""
+    objects = UserManager()
+    REQUIRED_FIELDS = []
+    USERNAME_FIELD = 'email' # Поле для аутентификации
+    email = models.EmailField(_('email address'), unique=True, db_index=True)
     username_validator = UnicodeUsernameValidator()
     username = models.CharField(
         _('username'),
         max_length=50,
+        db_index=True,
         help_text=_(
             '''Обязательно. 50 символов или меньше.
                Только буквы, цифры и @/./+/-/_'''
@@ -44,10 +70,10 @@ class User(AbstractUser):
         validators=[username_validator],
         error_messages={
             'unique': _("Пользователь с таким именем уже существует."),
-        },
+        }
     )
     is_active = models.BooleanField(
-        _('активен'),
+        _('Активен'),
         default=False,
         help_text=_(
             'Определяет, следует ли считать этого пользователя активным. '
@@ -59,6 +85,8 @@ class User(AbstractUser):
         choices=USER_TYPE_CHOICES,
         max_length=20, default='buyer'
     )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     groups = models.ManyToManyField(
         "auth.Group",
         related_name='custom_user_set',
@@ -70,9 +98,48 @@ class User(AbstractUser):
         related_name='custom_user_permissions_set',
         blank=True,
     )
+    company = models.CharField(
+        verbose_name='Компания',
+        max_length=40,
+        blank=True
+    )
+    position = models.CharField(
+        verbose_name='Должность',
+        max_length=40,
+        blank=True
+    )
 
     def __str__(self):
         return f'{self.first_name} {self.last_name}'
+    
+    @property
+    def token(self):
+        return self._generate_jwt_token()
+
+    def get_full_name(self):
+        """
+        Этот метод требуется Django для таких вещей, как обработка электронной
+        почты.
+        """
+        return self.first_name + ' ' + self.last_name
+
+    def get_short_name(self):
+        """ Аналогично методу get_full_name(). """
+        return self.first_name
+
+    def _generate_jwt_token(self):
+        """
+        Генерирует веб-токен JSON, в котором хранится идентификатор этого
+        пользователя, срок действия токена составляет 7 дней от создания
+        """
+        dt = datetime.now() + timedelta(days=7)
+
+        token = jwt.encode({
+            'id': self.pk,
+            'exp': int(dt.strftime('%s'))
+        }, settings.SECRET_KEY, algorithm='HS256')
+
+        return token.decode('utf-8')
 
     class Meta:
         verbose_name = 'Пользователь'
@@ -304,14 +371,14 @@ class OrderItem(models.Model):
 
 
 class ConfirmEmailToken(models.Model):
-    
+    """Класс подтверждения Email"""
     class Meta:
         verbose_name = 'Токен подтверждения Email'
         verbose_name_plural = 'Токены подтверждения Email'
 
     @staticmethod
     def generate_key():
-        """ generates a pseudo random code using os.urandom and binascii.hexlify """
+        """Генерирует псевдослучайный код, используя os.urandom и binascii.hexlify"""
         return get_token_generator().generate_token()
 
     user = models.ForeignKey(

@@ -61,9 +61,9 @@ class RegisterUserSerializer(serializers.ModelSerializer):
 
 
 class GetUserSerializer(serializers.ModelSerializer):
-    first_name = serializers.CharField(required=True)
-    last_name = serializers.CharField(required=True)
     email = serializers.CharField(required=True)
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
     company = serializers.CharField()
     position = serializers.CharField()
 
