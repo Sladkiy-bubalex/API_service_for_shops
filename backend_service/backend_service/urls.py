@@ -16,7 +16,12 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from app.views import ImportItemView, RegisterView, LoginView, ConfirmEmailView
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path("api/v1/admin/", admin.site.urls),
+    path("api/v1/import/", ImportItemView.as_view(), name="import-item"),
+    path("api/v1/users/register/", RegisterView.as_view(), name="register"),
+    path("api/v1/users/login/", LoginView.as_view(), name="login"),
+    path("api/v1/users/confirm-email/", ConfirmEmailView.as_view(), name="confirm-email"),
 ]

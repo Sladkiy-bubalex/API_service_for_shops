@@ -3,7 +3,7 @@ from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from app.models import ConfirmEmailToken
+from app.models import ConfirmEmailToken, User
 
 
 @receiver(post_save, sender=User)

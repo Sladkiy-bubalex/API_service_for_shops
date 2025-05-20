@@ -5,13 +5,22 @@ from django.http import JsonResponse
 from rest_framework.views import APIView
 from rest_framework.generics import CreateAPIView
 from app.models import Shop, Category, Product, ProductInfo, Parameter, ProductParameter, User
-from app.serializers import RegisterUserSerializer
-from rest_framework.exceptions import ValidationError
+from app.serializers import LoginSerializer, RegisterUserSerializer, ConfirmEmailSerializer
+from django.core.exceptions import ValidationError
+from rest_framework.permissions import AllowAny
+from app.renderers import UserJSONRenderer
+
+
+def check_password(password: str) -> None | JsonResponse:
+    try:
+        validate_password(password=password)
+    except ValidationError as e:
+        return JsonResponse({"Error": f"Ошибка проверки пароля: {e}"}, status=400)
 
 
 class ImportItemView(APIView):
     
-    def post(self, request: Request, *args, **kwargs):
+    def post(self, request: Request):
         if not request.user.is_authenticated:
             return JsonResponse({'Error': "Требуется авторизация"}, status=403)
 
@@ -65,28 +74,52 @@ class ImportItemView(APIView):
 
 class RegisterView(CreateAPIView):
     serializer_class = RegisterUserSerializer
+    permission_classes = (AllowAny,)
 
     def post(self, request):
         # Проверка пароля.
-        try:
-            validate_password(request.data["password"])
-        except ValidationError as e:
-            return JsonResponse({"Error": f"Ошибка проверка пароля: {e}"}, status=400)
+        check_password(request.data["password"])
 
         # Проверка входящих данных и последующее сохрание в БД.
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
-            user = User(
+            user = User.objects.create_user(
                 email=serializer.validated_data["email"],
-                first_name=serializer.validated_data.get("first_name"),
-                last_name=serializer.validated_data.get("last_name"),
                 username=serializer.validated_data["username"],
-                type=serializer.validated_data["type"],
-                company=request.data.get("company"),
-                position=request.data.get("position")
+                password=serializer.validated_data["password"],
+                first_name=serializer.validated_data.get("first_name", ""),
+                last_name=serializer.validated_data.get("last_name", ""),
+                type=serializer.validated_data.get("type", "buyer"),
+                company=serializer.validated_data.get("company", ""),
+                position=serializer.validated_data.get("position", "")
             )
-            user.set_password(serializer.validated_data["password"])  # Хэшируем пароль
-            user.save()
-            return JsonResponse({"message": "Вы успешно зарегистрированы!"}, status=201)
+            return JsonResponse({"id": user.id, "message": "Вы успешно зарегистрированы!"}, status=201)
 
         return JsonResponse({"Errors": serializer.errors}, status=400)
+
+
+class ConfirmEmailView(CreateAPIView):
+    serializer_class = ConfirmEmailSerializer
+    permission_classes = (AllowAny,)
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return JsonResponse({"message": "Email подтвержден!"}, status=200)
+
+class LoginView(CreateAPIView):
+    serializer_class = LoginSerializer
+    permission_classes = (AllowAny,)
+    renderer_classes = (UserJSONRenderer,)
+
+    def post(self, request):
+        # Проверка пароля.
+        check_password(request.data["user"]["password"])
+
+        user = request.data.get("user", {})
+        serializer = self.serializer_class(data=user)
+        serializer.is_valid(raise_exception=True)
+
+        return JsonResponse(serializer.data, status=200)
+
+
