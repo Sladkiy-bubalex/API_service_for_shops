@@ -25,7 +25,7 @@ class ContactSerializer(serializers.ModelSerializer):
         }
 
 
-class GetUserSerializer(serializers.ModelSerializer):
+class UserSerializer(serializers.ModelSerializer):
     email = serializers.CharField(required=True)
     first_name = serializers.CharField()
     last_name = serializers.CharField()
@@ -36,7 +36,7 @@ class GetUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "first_name", "last_name", "email", "company", "position", "is_active", "type"]
+        fields = ["id", "first_name", "last_name", "email", "company", "position", "is_active", "type", "contact"]
         read_only_fields = ("id",)
 
 
@@ -84,6 +84,8 @@ class RegisterUserSerializer(serializers.ModelSerializer):
         return value
 
 class ConfirmEmailSerializer(serializers.ModelSerializer):
+    """Serializer для подтверждения почты."""
+
     key = serializers.CharField(required=True)
     user = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
@@ -112,6 +114,8 @@ class ConfirmEmailSerializer(serializers.ModelSerializer):
 
 
 class LoginSerializer(serializers.ModelSerializer):
+    """Serializer для авторизации"""
+
     email = serializers.EmailField(required=True)
     password = serializers.CharField(required=True, write_only=True)
     token = serializers.CharField(read_only=True)
@@ -142,13 +146,12 @@ class LoginSerializer(serializers.ModelSerializer):
         # Проверка активности пользователя.
         if not user.is_active:
             raise serializers.ValidationError(
-                "Данная учетная запись не подтверждена или деактивированна."
+                "Данная учетная запись не подтверждена или деактивирована."
                 "Подтвердите эл. почту или обратитесь в поддержку"
             )
 
         # Метод validate должен возвращать словать проверенных данных.
         return {
             "email": user.email,
-            "username": user.username,
             "token": user.token
         }

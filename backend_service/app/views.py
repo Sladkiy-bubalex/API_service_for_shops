@@ -1,14 +1,20 @@
 import json
+
 from django.contrib.auth.password_validation import validate_password
-from rest_framework.request import Request
 from django.http import JsonResponse
+from django.core.exceptions import ValidationError
+
 from rest_framework.views import APIView
 from rest_framework.generics import CreateAPIView
-from app.models import Shop, Category, Product, ProductInfo, Parameter, ProductParameter, User
-from app.serializers import LoginSerializer, RegisterUserSerializer, ConfirmEmailSerializer
-from django.core.exceptions import ValidationError
+from rest_framework.viewsets import ModelViewSet
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.request import Request
 from rest_framework.permissions import AllowAny
+
+from app.permissions import IsSelfOrAdmin
 from app.renderers import UserJSONRenderer
+from app.models import Shop, Category, Product, ProductInfo, Parameter, ProductParameter, User
+from app.serializers import LoginSerializer, RegisterUserSerializer, ConfirmEmailSerializer, UserSerializer
 
 
 def check_password(password: str) -> None | JsonResponse:
@@ -121,5 +127,12 @@ class LoginView(CreateAPIView):
         serializer.is_valid(raise_exception=True)
 
         return JsonResponse(serializer.data, status=200)
+
+
+class UserViewSet(ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    renderer_classes = (UserJSONRenderer,)
+    permission_classes = (IsAuthenticated, IsSelfOrAdmin)
 
 

@@ -8,6 +8,11 @@ class UserJSONRenderer(JSONRenderer):
 
     def render(self, data, media_type=None, renderer_context=None):
         token = data.get('token', None)
+        errors = data.get('errors', None)
+
+        if errors is not None:
+            # Позволим стандартному JSONRenderer обрабатывать ошибку.
+            return super(UserJSONRenderer, self).render(data)
 
         if token is not None and isinstance(token, bytes):
             # Декодирует token если он имеет тип bytes.
