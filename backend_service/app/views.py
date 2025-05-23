@@ -5,16 +5,38 @@ from django.http import JsonResponse
 from django.core.exceptions import ValidationError
 
 from rest_framework.views import APIView
-from rest_framework.generics import CreateAPIView
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.generics import (
+    CreateAPIView,
+    RetrieveUpdateDestroyAPIView,
+    ListAPIView,
+    RetrieveAPIView,
+    UpdateAPIView,
+    DestroyAPIView
+)
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.permissions import AllowAny
 
-from app.permissions import IsSelfOrAdmin
+from app.permissions import IsSelfOrAdmin, IsShopOwner, IsCategoryOwner
 from app.renderers import UserJSONRenderer
-from app.models import Shop, Category, Product, ProductInfo, Parameter, ProductParameter, User
-from app.serializers import LoginSerializer, RegisterUserSerializer, ConfirmEmailSerializer, UserSerializer
+from app.models import (
+    Shop,
+    Category,
+    Product,
+    ProductInfo,
+    Parameter,
+    ProductParameter,
+    User,
+)
+from app.serializers import (
+    LoginSerializer,
+    RegisterUserSerializer,
+    ConfirmEmailSerializer,
+    UserSerializer,
+    ShopSerializer,
+    CategorySerializer,
+    ProductInfoSerializer,
+)
 
 
 def check_password(password: str) -> None | JsonResponse:
@@ -25,22 +47,22 @@ def check_password(password: str) -> None | JsonResponse:
 
 
 class ImportItemView(APIView):
-    
-    def post(self, request: Request):
-        if not request.user.is_authenticated:
-            return JsonResponse({'Error': "Требуется авторизация"}, status=403)
+    """Класс для импорта товаров"""
 
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request: Request):
         if request.user.type != 'shop':
             return JsonResponse({'Error': "Импорт доступен только для магазинов"}, status=403)
 
-        json_file = request.data.FILES.get("file")
+        json_file = request.FILES.get("file")
         if json_file:
             try:
                 data = json.load(json_file)
             except Exception:
                 return JsonResponse({"Error": "Неверный формат файла"}, status=400)
             
-            shop, _ = Shop.objects.get_or_create(name=data["shop"], user=request.user.id)
+            shop, _ = Shop.objects.get_or_create(name=data["shop"], user=request.user)
             categories = data.get("category")
             if categories is None:
                 return JsonResponse({"Error": "Отсутствуют категории"}, status=400)
@@ -79,6 +101,8 @@ class ImportItemView(APIView):
 
 
 class RegisterView(CreateAPIView):
+    """Класс для регистрации пользователя"""
+
     serializer_class = RegisterUserSerializer
     permission_classes = (AllowAny,)
 
@@ -105,6 +129,8 @@ class RegisterView(CreateAPIView):
 
 
 class ConfirmEmailView(CreateAPIView):
+    """Класс для подтверждения Email"""
+    
     serializer_class = ConfirmEmailSerializer
     permission_classes = (AllowAny,)
 
@@ -114,6 +140,8 @@ class ConfirmEmailView(CreateAPIView):
         return JsonResponse({"message": "Email подтвержден!"}, status=200)
 
 class LoginView(CreateAPIView):
+    """Класс для авторизации пользователя"""
+    
     serializer_class = LoginSerializer
     permission_classes = (AllowAny,)
     renderer_classes = (UserJSONRenderer,)
@@ -129,10 +157,75 @@ class LoginView(CreateAPIView):
         return JsonResponse(serializer.data, status=200)
 
 
-class UserViewSet(ModelViewSet):
+class UserListView(ListAPIView):
+    """Класс для получения списка пользователей"""
+    
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        # Если пользователь администратор, возвращаем всех пользователей
+        if self.request.user.is_staff:
+            return User.objects.all()
+        # В противном случае возвращаем только текущего пользователя
+        return User.objects.filter(id=self.request.user.id)
+
+
+class UserDetailView(RetrieveUpdateDestroyAPIView):
+    """Класс для получения, обновления и удаления пользователя"""
+    
     queryset = User.objects.all()
     serializer_class = UserSerializer
     renderer_classes = (UserJSONRenderer,)
     permission_classes = (IsAuthenticated, IsSelfOrAdmin)
+
+
+class ShopListView(ListAPIView):
+    """Класс для получения списка магазинов"""
+    
+    queryset = Shop.objects.all()
+    serializer_class = ShopSerializer
+    permission_classes = (IsAuthenticated,)
+
+
+class ShopDetailView(UpdateAPIView, DestroyAPIView):
+    """Класс для обновления и удаления магазина"""
+    
+    queryset = Shop.objects.all()
+    serializer_class = ShopSerializer
+    permission_classes = (IsAuthenticated, IsShopOwner)
+
+
+class CategoryListView(ListAPIView):
+    """Класс для получения списка категорий"""
+    
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+    permission_classes = (IsAuthenticated,)
+
+
+class CategoryDetailView(UpdateAPIView, DestroyAPIView):
+    """Класс для обновления и удаления категорий"""
+    
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+    permission_classes = (IsAuthenticated, IsCategoryOwner)
+
+
+class ProductInfoListView(ListAPIView):
+    """Класс для получения полного списка товаров со всеми параметрами"""
+    
+    queryset = ProductInfo.objects.all()
+    serializer_class = ProductInfoSerializer
+    permission_classes = (IsAuthenticated,)
+
+
+class ProductInfoView(RetrieveAPIView):
+    """Класс для получения полной информации о товаре"""
+    
+    queryset = ProductInfo.objects.all()
+    serializer_class = ProductInfoSerializer
+    permission_classes = (IsAuthenticated,)
 
 

@@ -15,19 +15,29 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from app.views import ImportItemView, RegisterView, LoginView, ConfirmEmailView, UserViewSet
-
-
-router = DefaultRouter()
-router.register('users', UserViewSet)
+from django.urls import path
+from app.views import (
+    ImportItemView, RegisterView, LoginView, ConfirmEmailView, UserDetailView, UserListView,
+    CategoryListView, CategoryDetailView, ProductInfoListView, ShopListView, ShopDetailView,
+    ProductInfoView,
+)
 
 urlpatterns = [
     path("api/v1/admin/", admin.site.urls),
     path("api/v1/import/", ImportItemView.as_view(), name="import-item"),
+
+    path("api/v1/users/", UserListView.as_view(), name="users"),
     path("api/v1/users/register/", RegisterView.as_view(), name="register"),
     path("api/v1/users/login/", LoginView.as_view(), name="login"),
     path("api/v1/users/confirm-email/", ConfirmEmailView.as_view(), name="confirm-email"),
-    path('api/v1/', include(router.urls)),
+    path("api/v1/users/<int:pk>", UserDetailView.as_view(), name="user"),
+
+    path("api/v1/categories/", CategoryListView.as_view(), name="categories"),
+    path("api/v1/categories/<int:pk>", CategoryDetailView.as_view(), name="category"),
+
+    path("api/v1/shops/", ShopListView.as_view(), name="shops"),
+    path("api/v1/shops/<int:pk>", ShopDetailView.as_view(), name="shop"),
+
+    path("api/v1/products/", ProductInfoListView.as_view(), name="products"),
+    path("api/v1/products/<int:pk>", ProductInfoView.as_view(), name="product")
 ]

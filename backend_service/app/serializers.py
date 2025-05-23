@@ -1,6 +1,10 @@
 import re
 from rest_framework import serializers
-from app.models import Contact, User, ConfirmEmailToken
+from app.models import (
+    Contact, User, ConfirmEmailToken,
+    Shop, Category, Product, ProductInfo,
+    ProductParameter
+)
 from django.contrib.auth import authenticate
 
 
@@ -83,6 +87,7 @@ class RegisterUserSerializer(serializers.ModelSerializer):
 
         return value
 
+
 class ConfirmEmailSerializer(serializers.ModelSerializer):
     """Serializer для подтверждения почты."""
 
@@ -155,3 +160,51 @@ class LoginSerializer(serializers.ModelSerializer):
             "email": user.email,
             "token": user.token
         }
+
+
+class ProductParameterSerializer(serializers.ModelSerializer):
+    """Serializer для параметра продукта"""
+    
+    class Meta:
+        model = ProductParameter
+        fields = ["id", "product_info", "parameter", "value"]
+
+
+class ProductSerializer(serializers.ModelSerializer):
+    """Serializer для товара"""
+    
+    class Meta:
+        model = Product
+        fields = ["id", "name", "categories"]
+        read_only_fields = ("id",)
+
+
+class CategorySerializer(serializers.ModelSerializer):
+    """Serializer для категории"""
+    
+    class Meta:
+        model = Category
+        fields = ["id", "name", "shops"]
+        read_only_fields = ("id",)
+
+
+class ShopSerializer(serializers.ModelSerializer):
+    """Serializer для магазина"""
+    
+    class Meta:
+        model = Shop
+        fields = ["id", "name", "url", "user", "state"]
+        read_only_fields = ("id",)
+
+
+class ProductInfoSerializer(serializers.ModelSerializer):
+    """Serializer для полной информации о товаре"""
+
+    product = ProductSerializer(read_only=True)
+    shop = ShopSerializer(read_only=True)
+    product_parameters = ProductParameterSerializer(read_only=True, many=True)
+    
+    class Meta:
+        model = ProductInfo
+        fields = ["id", "product", "shop", "price", "price_rrc", "quantity", "product_parameters"]
+        read_only_fields = ("id",)
