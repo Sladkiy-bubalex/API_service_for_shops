@@ -113,6 +113,7 @@ class RegisterView(CreateAPIView):
     permission_classes = (AllowAny,)
 
     def post(self, request):
+    def post(self, request: Request):
         # Проверка пароля.
         check_password(request.data["password"])
 
@@ -141,6 +142,7 @@ class ConfirmEmailView(CreateAPIView):
     permission_classes = (AllowAny,)
 
     def post(self, request):
+    def post(self, request: Request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         return JsonResponse({"message": "Email подтвержден!"}, status=200)
@@ -153,6 +155,7 @@ class LoginView(CreateAPIView):
     renderer_classes = (UserJSONRenderer,)
 
     def post(self, request):
+    def post(self, request: Request):
         # Проверка пароля.
         check_password(request.data["user"]["password"])
 
