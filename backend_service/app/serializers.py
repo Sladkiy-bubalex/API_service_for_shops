@@ -67,19 +67,16 @@ class RegisterUserSerializer(serializers.ModelSerializer):
             'password': {'write_only': True}
         }
 
-    def validate_email(self, value):
     def validate_email(self, value: str):
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("Этот email уже зарегистрирован.")
         return value
     
-    def validate_username(self, value):
     def validate_username(self, value: str):
         if User.objects.filter(username=value).exists():
             raise serializers.ValidationError("Такой никнейм уже существует")
         return value
     
-    def validate_password(self, value):
     def validate_password(self, value: str):
         if len(value) < 8:
             raise serializers.ValidationError("Пароль должен содержать не менее 8 символов.")
@@ -107,7 +104,6 @@ class ConfirmEmailSerializer(serializers.ModelSerializer):
         model = ConfirmEmailToken
         fields = ["key", "user"]
     
-    def validate(self, data):
     def validate(self, data: dict):
         key = data.get("key")
         user = data.get("user")
@@ -136,7 +132,6 @@ class LoginSerializer(serializers.ModelSerializer):
         model = User
         fields = ["email", "password", "token"]
 
-    def validate(self, data):
     def validate(self, data: dict):
         # Проверяем наличие email и пароль,
         email = data.get("email")
@@ -233,7 +228,6 @@ class ProductInfoUpdateDestroySerializer(serializers.ModelSerializer):
         fields = ["id", "product", "shop", "price", "price_rrc", "quantity", "product_parameters"]
         read_only_fields = ("id",)
 
-    def update(self, instance, validated_data):
     def update(self, instance: ProductInfo, validated_data: dict):
         """Метод обновления экземпляра ProductInfo"""
 

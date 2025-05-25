@@ -68,8 +68,12 @@ class ImportItemView(APIView):
                 return JsonResponse({"Error": "Неверный формат файла"}, status=400)
             
             with transaction.atomic():
-                shop, _ = Shop.objects.get_or_create(name=data["shop"], user=request.user)
-                categories = data.get("category")
+                try:
+                    shop, _ = Shop.objects.get_or_create(name=data["shop"], user_id=request.user.id)
+                except IntegrityError:
+                    return JsonResponse({"Error": "У пользователя уже есть магазин"}, status=400)
+
+                categories = data.get("categories")
                 if categories is None:
                     return JsonResponse({"Error": "Отсутствуют категории"}, status=400)
                 for category in categories:
@@ -77,29 +81,38 @@ class ImportItemView(APIView):
                     category.shops.add(shop.id)
                     category.save()
             
-                items = data.get("item")
+                items = data.get("items")
                 if items is None:
                     return JsonResponse({"Error": "Отсутствуют товары"}, status=400)
+                product_infos = []
+                product_parameters = []
                 for item in items:
                     product, _ = Product.objects.get_or_create(name=item["name"], categories_id=item["category"])
-                    product_info, _ = ProductInfo.objects.get_or_create(
-                        product_id=product.id,
-                        shop_id=shop.id,
+                    product_info = ProductInfo(
+                        product=product,
+                        shop=shop,
                         price=item["price"],
                         price_rrc=item["price_rrc"],
                         quantity=item["quantity"]
-                        )
-
-                parameters = item.get("parameters")
-                if parameters is None:
-                    return JsonResponse({"Error": "Отсутствуют параметры товара"}, status=400)
-                for name, value in parameters.items():
-                    parameter, _ = Parameter.objects.get_or_create(name=name)
-                    ProductParameter.objects.get_or_create(
-                        product_info_id=product_info.id,
-                        parameter_id=parameter.id,
-                        value=value
                     )
+                    product_infos.append(product_info)
+
+                    # Обработка параметров
+                    parameters = item.get("parameters")
+                    if parameters is None:
+                        return JsonResponse({"Error": "Отсутствуют параметры"}, status=400)
+
+                    for name, value in parameters.items():
+                        parameter, _ = Parameter.objects.get_or_create(name=name)
+                        product_parameters.append(ProductParameter(
+                            product_info=product_info,
+                            parameter=parameter,
+                            value=value
+                        ))
+
+                # Пакетное создание объектов
+                ProductInfo.objects.bulk_create(product_infos)
+                ProductParameter.objects.bulk_create(product_parameters)
 
             return JsonResponse({"message": "Успешно"}, status=200)
         else:
@@ -112,7 +125,6 @@ class RegisterView(CreateAPIView):
     serializer_class = RegisterUserSerializer
     permission_classes = (AllowAny,)
 
-    def post(self, request):
     def post(self, request: Request):
         # Проверка пароля.
         check_password(request.data["password"])
@@ -141,7 +153,6 @@ class ConfirmEmailView(CreateAPIView):
     serializer_class = ConfirmEmailSerializer
     permission_classes = (AllowAny,)
 
-    def post(self, request):
     def post(self, request: Request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -154,7 +165,6 @@ class LoginView(CreateAPIView):
     permission_classes = (AllowAny,)
     renderer_classes = (UserJSONRenderer,)
 
-    def post(self, request):
     def post(self, request: Request):
         # Проверка пароля.
         check_password(request.data["user"]["password"])
