@@ -7,7 +7,7 @@ from django.http import Http404
 from app.models import (
     Contact, User, ConfirmEmailToken,
     Shop, Category, Product, ProductInfo,
-    ProductParameter
+    ProductParameter, Order, OrderItem
 )
 
 
@@ -260,3 +260,38 @@ class ProductInfoUpdateDestroySerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
+
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    """Serializer для элемента заказа"""
+    
+    class Meta:
+        model = OrderItem
+        fields = ["id", "order", "product_info", "quantity"]
+        read_only_fields = ("id",)
+        extra_kwargs = {
+            "order": {
+                "write_only": True
+            },
+            "quantity": {
+                "min_value": 1,
+                "max_value": 100,
+                "error_messages": {
+                    "min_value": "Количество товара должно быть не менее 1",
+                    "max_value": "Количество товара должно быть не более 100"
+                }
+            }
+        }
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    """Serializer для заказа"""
+
+    order_items = OrderItemSerializer(read_only=True, many=True)
+    total_sum = serializers.IntegerField(read_only=True)
+    contact = ContactSerializer(read_only=True)
+    
+    class Meta:
+        model = Order
+        fields = ["id", "user", "state", "contact", "order_items", "total_sum"]
+        read_only_fields = ("id",)

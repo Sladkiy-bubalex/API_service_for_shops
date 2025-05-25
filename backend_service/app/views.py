@@ -3,7 +3,8 @@ import json
 from django.contrib.auth.password_validation import validate_password
 from django.http import JsonResponse
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db.models import Q, Sum, F
+from django.db import transaction, IntegrityError
 
 from django_filters.rest_framework import DjangoFilterBackend
 
@@ -11,6 +12,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.permissions import AllowAny
+from rest_framework.exceptions import ValidationError
 from rest_framework.generics import (
     CreateAPIView,
     RetrieveUpdateDestroyAPIView,
@@ -31,6 +33,8 @@ from app.models import (
     Parameter,
     ProductParameter,
     User,
+    Order,
+    OrderItem,
 )
 from app.serializers import (
     LoginSerializer,
@@ -41,6 +45,8 @@ from app.serializers import (
     CategorySerializer,
     ProductInfoSerializer,
     ProductInfoUpdateDestroySerializer,
+    OrderSerializer,
+    OrderItemSerializer,
 )
 
 
@@ -235,7 +241,7 @@ class CategoryDetailView(UpdateAPIView, DestroyAPIView):
 class ProductInfoListView(ListAPIView):
     """Класс для получения полного списка товаров со всеми параметрами"""
     
-    queryset = ProductInfo.objects.all()
+    queryset = ProductInfo.objects.filter(Q(shop__state=True))
     serializer_class = ProductInfoSerializer
     permission_classes = (IsAuthenticated,)
     filter_backends = (DjangoFilterBackend,)
@@ -245,7 +251,7 @@ class ProductInfoListView(ListAPIView):
 class ProductInfoView(RetrieveAPIView):
     """Класс для получения полной информации о товаре"""
     
-    queryset = ProductInfo.objects.all()
+    queryset = ProductInfo.objects.filter(Q(shop__state=True))
     serializer_class = ProductInfoSerializer
     permission_classes = (IsAuthenticated,)
 
@@ -256,4 +262,54 @@ class ProductInfoDetailView(UpdateAPIView, DestroyAPIView):
     serializer_class = ProductInfoUpdateDestroySerializer
     permission_classes = (IsAuthenticated, IsProductOwner)
 
+
+class BasketListView(APIView):
+    """Класс для получения, обновления, удаления товаров из корзины"""
+
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request: Request):
+        """Метод для получения списка товаров в корзине"""
+        
+        # Получение корзины пользователя
+        basket = Order.objects.filter(
+            user_id=request.user.id, state="basket").prefetch_related(
+            "order_items__product_info__product__categories",
+            "order_items__product_info__product_parameters__parameter").annotate(
+            total_sum=Sum(
+                F("order_items__quantity") * F("order_items__product_info__price"))
+            ).distinct()
+        
+        serializer = OrderSerializer(basket, many=True)
+        return JsonResponse(serializer.data, status=200, safe=False)
+    
+    def post(self, request: Request):
+        """Метод для добавления товара в корзину"""
+        
+        items_basket = request.data.get("items")
+        if items_basket:
+            basket, _ = Order.objects.get_or_create(user_id=request.user.id, state="basket")
+            order_items = []
+            # Вызываем конекстный менеджер для атомарности операции
+            with transaction.atomic():
+                for item in items_basket:
+                    item.update({"order": basket.id})
+                    serializer = OrderItemSerializer(data=item)
+                    if serializer.is_valid():
+                        order_items.append(serializer.validated_data)
+                    else:
+                        return JsonResponse({"Errors": serializer.errors}, status=400)
+                OrderItem.objects.bulk_create([OrderItem(**data) for data in order_items])
+
+            return JsonResponse({"Message": "Успешно", "Создано объектов": len(order_items)}, status=200)
+        return JsonResponse({"Errors": "Не указаны все необходимые аргументы"}, status=400)
+    
+    def delete(self, request: Request):
+        """Метод для удаления товаров из корзины"""
+        
+        basket = Order.objects.filter(user_id=request.user.id, state="basket")
+        if basket:
+            basket.delete()
+            return JsonResponse({"Message": "Успешно"}, status=200)
+        return JsonResponse({"Errors": "Корзина не найдена"}, status=400)
 

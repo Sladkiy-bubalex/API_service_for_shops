@@ -19,7 +19,7 @@ from django.urls import path
 from app.views import (
     ImportItemView, RegisterView, LoginView, ConfirmEmailView, UserDetailView, UserListView,
     CategoryListView, CategoryDetailView, ProductInfoListView, ShopListView, ShopDetailView,
-    ProductInfoView, ProductInfoDetailView,
+    ProductInfoView, ProductInfoDetailView, BasketListView,
 )
 
 urlpatterns = [
@@ -41,4 +41,6 @@ urlpatterns = [
     path("api/v1/products/", ProductInfoListView.as_view(), name="products"),
     path("api/v1/products/<int:pk>", ProductInfoView.as_view(), name="product"),
     path("api/v1/products-detail/<int:pk>", ProductInfoDetailView.as_view(), name="product-detail"),
+
+    path("api/v1/basket/", BasketListView.as_view(), name="basket"),
 ]
