@@ -4,7 +4,12 @@ from django.contrib.auth.password_validation import validate_password
 from django.http import JsonResponse
 from django.core.exceptions import ValidationError
 
+from django_filters.rest_framework import DjangoFilterBackend
+
 from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.request import Request
+from rest_framework.permissions import AllowAny
 from rest_framework.generics import (
     CreateAPIView,
     RetrieveUpdateDestroyAPIView,
@@ -13,12 +18,10 @@ from rest_framework.generics import (
     UpdateAPIView,
     DestroyAPIView
 )
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.request import Request
-from rest_framework.permissions import AllowAny
 
 from app.permissions import IsSelfOrAdmin, IsShopOwner, IsCategoryOwner, IsProductOwner
 from app.renderers import UserJSONRenderer
+from app.filters import ProductInfoFilter
 from app.models import (
     Shop,
     Category,
@@ -220,6 +223,8 @@ class ProductInfoListView(ListAPIView):
     queryset = ProductInfo.objects.all()
     serializer_class = ProductInfoSerializer
     permission_classes = (IsAuthenticated,)
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = ProductInfoFilter
 
 
 class ProductInfoView(RetrieveAPIView):
