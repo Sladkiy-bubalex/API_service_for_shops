@@ -1,11 +1,14 @@
 import re
 from rest_framework import serializers
+from django.contrib.auth import authenticate
+from django.db import transaction
+from django.shortcuts import get_object_or_404
+from django.http import Http404
 from app.models import (
     Contact, User, ConfirmEmailToken,
     Shop, Category, Product, ProductInfo,
     ProductParameter
 )
-from django.contrib.auth import authenticate
 
 
 class ContactSerializer(serializers.ModelSerializer):
@@ -164,10 +167,13 @@ class LoginSerializer(serializers.ModelSerializer):
 
 class ProductParameterSerializer(serializers.ModelSerializer):
     """Serializer для параметра продукта"""
+
+    id = serializers.IntegerField()
     
     class Meta:
         model = ProductParameter
         fields = ["id", "product_info", "parameter", "value"]
+        read_only_fields = ("product_info", "parameter")
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -208,3 +214,49 @@ class ProductInfoSerializer(serializers.ModelSerializer):
         model = ProductInfo
         fields = ["id", "product", "shop", "price", "price_rrc", "quantity", "product_parameters"]
         read_only_fields = ("id",)
+
+
+class ProductInfoUpdateDestroySerializer(serializers.ModelSerializer):
+    """Serializer для обновления и удаления информации о товаре"""
+
+    product = ProductSerializer()
+    shop = ShopSerializer()
+    product_parameters = ProductParameterSerializer(many=True)
+
+    class Meta:
+        model = ProductInfo
+        fields = ["id", "product", "shop", "price", "price_rrc", "quantity", "product_parameters"]
+        read_only_fields = ("id",)
+
+    def update(self, instance, validated_data):
+        """Метод обновления экземпляра ProductInfo"""
+
+        product_data = validated_data.pop("product", None)
+        shop_data = validated_data.pop("shop", None)
+        product_parameters_data = validated_data.pop("product_parameters", None)
+
+        """ Обновляем информацию о продукте, если она была передана,
+            если возникнет ошибка в процессе обновления
+            то будет произведен откат изменений"""
+        with transaction.atomic():
+            if product_data:
+                product_instance = instance.product
+                ProductSerializer(product_instance).update(product_instance, product_data)
+
+            if shop_data:
+                shop_instance = instance.shop
+                ShopSerializer(shop_instance).update(shop_instance, shop_data)
+
+            if product_parameters_data:
+                for data in product_parameters_data:
+                    try:
+                        product_parameter_instance = get_object_or_404(instance.product_parameters, id=data["id"])
+                    except Http404:
+                        raise Http404(f"Параметр продукта c id={data['id']} не найден")
+                    ProductParameterSerializer(product_parameter_instance).update(product_parameter_instance, data)
+
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+
+        instance.save()
+        return instance

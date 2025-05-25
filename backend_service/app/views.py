@@ -17,7 +17,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.permissions import AllowAny
 
-from app.permissions import IsSelfOrAdmin, IsShopOwner, IsCategoryOwner
+from app.permissions import IsSelfOrAdmin, IsShopOwner, IsCategoryOwner, IsProductOwner
 from app.renderers import UserJSONRenderer
 from app.models import (
     Shop,
@@ -36,6 +36,7 @@ from app.serializers import (
     ShopSerializer,
     CategorySerializer,
     ProductInfoSerializer,
+    ProductInfoUpdateDestroySerializer,
 )
 
 
@@ -184,7 +185,7 @@ class UserDetailView(RetrieveUpdateDestroyAPIView):
 class ShopListView(ListAPIView):
     """Класс для получения списка магазинов"""
     
-    queryset = Shop.objects.all()
+    queryset = Shop.objects.filter(state=True)
     serializer_class = ShopSerializer
     permission_classes = (IsAuthenticated,)
 
@@ -227,5 +228,12 @@ class ProductInfoView(RetrieveAPIView):
     queryset = ProductInfo.objects.all()
     serializer_class = ProductInfoSerializer
     permission_classes = (IsAuthenticated,)
+
+class ProductInfoDetailView(UpdateAPIView, DestroyAPIView):
+    """Класс для обновления и удаления товара"""
+    
+    queryset = ProductInfo.objects.all()
+    serializer_class = ProductInfoUpdateDestroySerializer
+    permission_classes = (IsAuthenticated, IsProductOwner)
 
 
