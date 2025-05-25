@@ -3,6 +3,7 @@ import json
 from django.contrib.auth.password_validation import validate_password
 from django.http import JsonResponse
 from django.core.exceptions import ValidationError
+from django.db import transaction
 
 from django_filters.rest_framework import DjangoFilterBackend
 
@@ -66,27 +67,28 @@ class ImportItemView(APIView):
             except Exception:
                 return JsonResponse({"Error": "Неверный формат файла"}, status=400)
             
-            shop, _ = Shop.objects.get_or_create(name=data["shop"], user=request.user)
-            categories = data.get("category")
-            if categories is None:
-                return JsonResponse({"Error": "Отсутствуют категории"}, status=400)
-            for category in categories:
-                category, _ = Category.objects.get_or_create(name=category["name"])
-                category.shops.add(shop.id)
-                category.save()
+            with transaction.atomic():
+                shop, _ = Shop.objects.get_or_create(name=data["shop"], user=request.user)
+                categories = data.get("category")
+                if categories is None:
+                    return JsonResponse({"Error": "Отсутствуют категории"}, status=400)
+                for category in categories:
+                    category, _ = Category.objects.get_or_create(name=category["name"])
+                    category.shops.add(shop.id)
+                    category.save()
             
-            items = data.get("item")
-            if items is None:
-                return JsonResponse({"Error": "Отсутствуют товары"}, status=400)
-            for item in items:
-                product, _ = Product.objects.get_or_create(name=item["name"], categories_id=item["category"])
-                product_info, _ = ProductInfo.objects.get_or_create(
-                    product_id=product.id,
-                    shop_id=shop.id,
-                    price=item["price"],
-                    price_rrc=item["price_rrc"],
-                    quantity=item["quantity"]
-                )
+                items = data.get("item")
+                if items is None:
+                    return JsonResponse({"Error": "Отсутствуют товары"}, status=400)
+                for item in items:
+                    product, _ = Product.objects.get_or_create(name=item["name"], categories_id=item["category"])
+                    product_info, _ = ProductInfo.objects.get_or_create(
+                        product_id=product.id,
+                        shop_id=shop.id,
+                        price=item["price"],
+                        price_rrc=item["price_rrc"],
+                        quantity=item["quantity"]
+                        )
 
                 parameters = item.get("parameters")
                 if parameters is None:
@@ -98,7 +100,7 @@ class ImportItemView(APIView):
                         parameter_id=parameter.id,
                         value=value
                     )
-                
+
             return JsonResponse({"message": "Успешно"}, status=200)
         else:
             return JsonResponse({"Error": "Файл не загружен"}, status=400)
