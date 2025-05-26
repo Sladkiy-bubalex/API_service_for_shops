@@ -12,24 +12,30 @@ from app.models import (
 
 
 class ContactSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(),
-        required=True
-    )
+
     city = serializers.CharField(required=True)
     street = serializers.CharField(required=True)
     house = serializers.IntegerField(required=True)
     building = serializers.IntegerField()
     apartment = serializers.IntegerField()
-    phone = serializers.IntegerField(required=True)
+    phone = serializers.CharField(required=True)
     
     class Meta:
         model = Contact
         fields = ["id", "user", "city", "street", "house", "building", "apartment", "phone"]
-        read_only_fields = ("id",)
-        extra_kwargs = {
-            'user': {'write_only': True}
-        }
+        read_only_fields = ("id", "user")
+
+    def validate(self, attrs):
+        phone = attrs.get("phone")
+        if phone is not None:
+            if not re.match(r"^\+7\d{10}$", phone):
+                raise serializers.ValidationError("Номер телефона должен начинаться с +7 и содержать 11 цифр.")
+        return attrs
+    
+    def create(self, validated_data):
+        user = self.context['request'].user.id
+        contact = Contact.objects.create(user_id=user, **validated_data)
+        return contact
 
 
 class UserSerializer(serializers.ModelSerializer):

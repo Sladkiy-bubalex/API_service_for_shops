@@ -13,6 +13,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.permissions import AllowAny
 from rest_framework.exceptions import ValidationError
+from rest_framework.viewsets import ModelViewSet
 from rest_framework.generics import (
     CreateAPIView,
     RetrieveUpdateDestroyAPIView,
@@ -22,7 +23,7 @@ from rest_framework.generics import (
     DestroyAPIView
 )
 
-from app.permissions import IsSelfOrAdmin, IsShopOwner, IsCategoryOwner, IsProductOwner
+from app.permissions import IsSelfUserOrAdmin, IsShopOwnerOrAdmin, IsCategoryOwnerOrAdmin, IsProductInfoOwnerOrAdmin, IsContactOwnerOrAdmin
 from app.renderers import UserJSONRenderer
 from app.filters import ProductInfoFilter
 from app.models import (
@@ -35,6 +36,7 @@ from app.models import (
     User,
     Order,
     OrderItem,
+    Contact,
 )
 from app.serializers import (
     LoginSerializer,
@@ -47,6 +49,7 @@ from app.serializers import (
     ProductInfoUpdateDestroySerializer,
     OrderSerializer,
     OrderItemSerializer,
+    ContactSerializer,
 )
 
 
@@ -184,8 +187,7 @@ class LoginView(CreateAPIView):
 
 class UserListView(ListAPIView):
     """Класс для получения списка пользователей"""
-    
-    queryset = User.objects.all()
+
     serializer_class = UserSerializer
     permission_classes = (IsAuthenticated,)
 
@@ -203,7 +205,7 @@ class UserDetailView(RetrieveUpdateDestroyAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     renderer_classes = (UserJSONRenderer,)
-    permission_classes = (IsAuthenticated, IsSelfOrAdmin)
+    permission_classes = (IsAuthenticated, IsSelfUserOrAdmin)
 
 
 class ShopListView(ListAPIView):
@@ -219,7 +221,7 @@ class ShopDetailView(UpdateAPIView, DestroyAPIView):
     
     queryset = Shop.objects.all()
     serializer_class = ShopSerializer
-    permission_classes = (IsAuthenticated, IsShopOwner)
+    permission_classes = (IsAuthenticated, IsShopOwnerOrAdmin)
 
 
 class CategoryListView(ListAPIView):
@@ -235,7 +237,7 @@ class CategoryDetailView(UpdateAPIView, DestroyAPIView):
     
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
-    permission_classes = (IsAuthenticated, IsCategoryOwner)
+    permission_classes = (IsAuthenticated, IsCategoryOwnerOrAdmin)
 
 
 class ProductInfoListView(ListAPIView):
@@ -260,7 +262,7 @@ class ProductInfoDetailView(UpdateAPIView, DestroyAPIView):
     
     queryset = ProductInfo.objects.all()
     serializer_class = ProductInfoUpdateDestroySerializer
-    permission_classes = (IsAuthenticated, IsProductOwner)
+    permission_classes = (IsAuthenticated, IsProductInfoOwnerOrAdmin)
 
 
 class BasketListView(APIView):
@@ -313,3 +315,18 @@ class BasketListView(APIView):
             return JsonResponse({"Message": "Успешно"}, status=200)
         return JsonResponse({"Errors": "Корзина не найдена"}, status=400)
 
+
+class ContactViewSet(ModelViewSet):
+    """Класс для управления контактами"""
+
+    serializer_class = ContactSerializer
+    permission_classes = (IsAuthenticated, IsContactOwnerOrAdmin)
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["city", "street"]
+
+    def get_queryset(self):
+        # Если пользователь администратор, возвращаем все контакты
+        if self.request.user.is_staff:
+            return Contact.objects.all()
+        # В противном случае возвращаем только контакты текущего пользователя
+        return Contact.objects.filter(user=self.request.user)
