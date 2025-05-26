@@ -20,7 +20,7 @@ from rest_framework.routers import DefaultRouter
 from app.views import (
     ImportItemView, RegisterView, LoginView, ConfirmEmailView, UserDetailView, UserListView,
     CategoryListView, CategoryDetailView, ProductInfoListView, ShopListView, ShopDetailView,
-    ProductInfoView, ProductInfoDetailView, BasketListView, ContactViewSet,
+    ProductInfoView, ProductInfoDetailView, BasketListView, ContactViewSet, OrderView,
 )
 
 router = DefaultRouter()
@@ -47,6 +47,8 @@ urlpatterns = [
     path("api/v1/products-detail/<int:pk>", ProductInfoDetailView.as_view(), name="product-detail"),
 
     path("api/v1/basket/", BasketListView.as_view(), name="basket"),
+
+    path("api/v1/orders/", OrderView.as_view(), name="orders"),
 
     path("api/v1/", include(router.urls)),
 ]

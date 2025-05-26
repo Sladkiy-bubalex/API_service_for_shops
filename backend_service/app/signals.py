@@ -2,9 +2,11 @@ from typing import Type
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.db.models.signals import post_save
-from django.dispatch import receiver
-from app.models import ConfirmEmailToken, User
+from django.dispatch import receiver, Signal
+from app.models import ConfirmEmailToken, User, Order
 
+
+new_order = Signal()
 
 @receiver(post_save, sender=User)
 def new_user_registered_signal(sender: Type[User], instance: User, created: bool, **kwargs):
@@ -31,3 +33,26 @@ def new_user_registered_signal(sender: Type[User], instance: User, created: bool
             to=[instance.email]
         )
         msg.send()
+    
+@receiver(new_order, sender=Order)
+def new_order_signal(sender: Type[Order], user_id, **kwargs):
+    """
+    отправляем письмо при изменении статуса заказа
+    """
+    # send an e-mail to the user
+    user = User.objects.get(id=user_id)
+
+    msg = EmailMultiAlternatives(
+        # title:
+        subject="Обновление статуса заказа",
+        # message:
+        body=(
+            f"Здравствуйте, {user.username}!\n\n"
+            "Ваш заказ сформирован. Спасибо за покупку!"
+        ),
+        # from:
+        from_email=settings.EMAIL_HOST_USER,
+        # to:
+        to=[user.email]
+    )
+    msg.send()

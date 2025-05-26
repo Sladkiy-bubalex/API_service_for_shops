@@ -20,11 +20,19 @@ from rest_framework.generics import (
     ListAPIView,
     RetrieveAPIView,
     UpdateAPIView,
-    DestroyAPIView
+    DestroyAPIView,
+    ListCreateAPIView
 )
 
-from app.permissions import IsSelfUserOrAdmin, IsShopOwnerOrAdmin, IsCategoryOwnerOrAdmin, IsProductInfoOwnerOrAdmin, IsContactOwnerOrAdmin
+from app.permissions import (
+    IsSelfUserOrAdmin,
+    IsShopOwnerOrAdmin,
+    IsCategoryOwnerOrAdmin,
+    IsProductInfoOwnerOrAdmin,
+    IsContactOwnerOrAdmin,
+)
 from app.renderers import UserJSONRenderer
+from app.signals import new_order
 from app.filters import ProductInfoFilter
 from app.models import (
     Shop,
@@ -330,3 +338,42 @@ class ContactViewSet(ModelViewSet):
             return Contact.objects.all()
         # В противном случае возвращаем только контакты текущего пользователя
         return Contact.objects.filter(user=self.request.user)
+
+
+class OrderView(ListCreateAPIView):
+    """Класс для получения, размещения заказов"""
+    
+    def get_queryset(self):
+        return Order.objects.filter(
+            user_id=self.request.user.id).exclude(state="basket").prefetch_related(
+            "order_items__product_info__product__categories",
+            "order_items__product_info__product_parameters__parameter"
+            ).select_related("contact").annotate(
+            total_sum=Sum(
+                F("order_items__quantity") *
+                F("order_items__product_info__price")
+            )).distinct()
+    
+    serializer_class = OrderSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request: Request):
+        """Метод для размещения заказа"""
+        
+        basket_id = request.data.get("basket_id")
+        contact_id = request.data.get("contact_id")
+        if basket_id is None or contact_id is None:
+            return JsonResponse({"Errors": "Не указаны все необходимые аргументы"}, status=400)
+        
+        if not isinstance(basket_id, int) or not isinstance(contact_id, int):
+            return JsonResponse({"Errors": "ID корзины и контакта должны быть числами"}, status=400)
+
+        if not Contact.objects.filter(id=contact_id, user_id=self.request.user.id).exists():
+            return JsonResponse({"Errors": "Контакт не найден"}, status=400)
+        
+        basket = Order.objects.filter(user_id=self.request.user.id, state="basket", id=basket_id)
+        if basket:
+            basket.update(state="new", contact_id=contact_id)
+            new_order.send(sender=Order, user_id=self.request.user.id)
+            return JsonResponse({"Message": "Заказ успешно размещен"}, status=200)
+        return JsonResponse({"Errors": "Корзина не найдена"}, status=400)

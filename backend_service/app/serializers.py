@@ -33,7 +33,7 @@ class ContactSerializer(serializers.ModelSerializer):
         return attrs
     
     def create(self, validated_data):
-        user = self.context['request'].user.id
+        user = self.context["request"].user.id
         contact = Contact.objects.create(user_id=user, **validated_data)
         return contact
 
