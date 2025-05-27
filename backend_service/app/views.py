@@ -407,3 +407,22 @@ class OrderView(ListCreateAPIView):
             basket.update(state="new", contact_id=contact_id)
             new_order.send(sender=Order, user_id=self.request.user.id)
             return JsonResponse({"Message": "Заказ успешно размещен"}, status=200)
+
+
+class PartnerOrderView(ListAPIView, UpdateAPIView):
+    """Класс для получения и обновления заказов партнером"""
+    
+    def get_queryset(self):
+        return Order.objects.filter(
+            ordered_items__product_info__shop__user_id=self.request.user.id
+            ).exclude(state='basket').prefetch_related(
+            "order_items__product_info__product__categories",
+            "order_items__product_info__product_parameters__parameter"
+            ).select_related("contact").annotate(
+            total_sum=Sum(
+                F("order_items__quantity") *
+                F("order_items__product_info__price")
+            )).distinct()
+    
+    serializer_class = OrderSerializer
+    permission_classes = (IsAuthenticated,)
