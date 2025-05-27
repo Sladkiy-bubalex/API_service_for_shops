@@ -18,13 +18,19 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from app.views import (
-    ImportItemView, RegisterView, LoginView, ConfirmEmailView, UserDetailView, UserListView,
-    CategoryListView, CategoryDetailView, ProductInfoListView, ShopListView, ShopDetailView,
-    ProductInfoView, ProductInfoDetailView, BasketListView, ContactViewSet, OrderView,
+    ImportItemView, RegisterView, LoginView, ConfirmEmailView,
+    UserDetailView, UserListView,
+    CategoryListView, CategoryDetailView,
+    ShopListView, ShopDetailView,
+    PartnerProductInfoViewSet, ProductInfoListView, ProductInfoView,
+    BasketListView,
+    ContactViewSet,
+    OrderView,
 )
 
 router = DefaultRouter()
 router.register("contacts", ContactViewSet, basename="contacts")
+router.register("products/partner", PartnerProductInfoViewSet, basename="products-partner")
 
 urlpatterns = [
     path("api/v1/admin/", admin.site.urls),
@@ -44,7 +50,6 @@ urlpatterns = [
 
     path("api/v1/products/", ProductInfoListView.as_view(), name="products"),
     path("api/v1/products/<int:pk>", ProductInfoView.as_view(), name="product"),
-    path("api/v1/products-detail/<int:pk>", ProductInfoDetailView.as_view(), name="product-detail"),
 
     path("api/v1/basket/", BasketListView.as_view(), name="basket"),
 

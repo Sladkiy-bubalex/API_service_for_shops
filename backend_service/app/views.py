@@ -265,12 +265,17 @@ class ProductInfoView(RetrieveAPIView):
     serializer_class = ProductInfoSerializer
     permission_classes = (IsAuthenticated,)
 
-class ProductInfoDetailView(UpdateAPIView, DestroyAPIView):
-    """Класс для обновления и удаления товара"""
+
+class PartnerProductInfoViewSet(ModelViewSet):
+    """Класс для получения, обновления и удаления товаров для партнера"""
     
-    queryset = ProductInfo.objects.all()
+    def get_queryset(self):
+        return ProductInfo.objects.filter(Q(shop__user=self.request.user))
+
     serializer_class = ProductInfoUpdateDestroySerializer
     permission_classes = (IsAuthenticated, IsProductInfoOwnerOrAdmin)
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = ProductInfoFilter
 
 
 class BasketListView(APIView):
@@ -364,7 +369,7 @@ class ContactViewSet(ModelViewSet):
 
 
 class OrderView(ListCreateAPIView):
-    """Класс для получения, размещения заказов"""
+    """Класс для получения, размещения заказов пользователя"""
     
     def get_queryset(self):
         return Order.objects.filter(
