@@ -74,7 +74,7 @@ class ImportItemView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def post(self, request: Request):
-        if request.user.type != 'shop':
+        if request.user.type != "shop":
             return JsonResponse({'Error': "Импорт доступен только для магазинов"}, status=403)
 
         json_file = request.FILES.get("file")
@@ -314,14 +314,37 @@ class BasketListView(APIView):
             return JsonResponse({"Message": "Успешно", "Создано объектов": len(order_items)}, status=200)
         return JsonResponse({"Errors": "Не указаны все необходимые аргументы"}, status=400)
     
+    def patch(self, request: Request):
+        """Метод для обновления количества товара в корзине"""
+        
+        items_basket = request.data.get("items")
+        if items_basket:
+            try:
+                basket = Order.objects.get_object_or_404(user_id=request.user.id, state="basket")
+            except Http404:
+                return JsonResponse({"Errors": "Корзина не найдена"}, status=404)
+            order_items = []
+            # Вызываем конекстный менеджер для атомарности операции
+            with transaction.atomic():
+                for item in items_basket:
+                    order_item = OrderItem.objects.get(order_id=basket.id, id=item["id"])
+                    order_item.quantity = item["quantity"]
+                    order_item.save()
+                    order_items.append(order_item)
+
+            return JsonResponse({"Message": "Успешно", "Обновлено объектов": len(order_items)}, status=200)
+        return JsonResponse({"Errors": "Не указаны все необходимые аргументы"}, status=400)
+    
     def delete(self, request: Request):
         """Метод для удаления товаров из корзины"""
         
-        basket = Order.objects.filter(user_id=request.user.id, state="basket")
-        if basket:
+        try:
+            basket = Order.objects.get_object_or_404(user_id=request.user.id, state="basket")
+        except Http404:
+            return JsonResponse({"Errors": "Корзина не найдена"}, status=404)
+        else:
             basket.delete()
             return JsonResponse({"Message": "Успешно"}, status=200)
-        return JsonResponse({"Errors": "Корзина не найдена"}, status=400)
 
 
 class ContactViewSet(ModelViewSet):
@@ -371,9 +394,11 @@ class OrderView(ListCreateAPIView):
         if not Contact.objects.filter(id=contact_id, user_id=self.request.user.id).exists():
             return JsonResponse({"Errors": "Контакт не найден"}, status=400)
         
-        basket = Order.objects.filter(user_id=self.request.user.id, state="basket", id=basket_id)
-        if basket:
+        try:
+            basket = Order.objects.get_object_or_404(user_id=self.request.user.id, state="basket", id=basket_id)
+        except Http404:
+            return JsonResponse({"Errors": "Корзина не найдена"}, status=404)
+        else:
             basket.update(state="new", contact_id=contact_id)
             new_order.send(sender=Order, user_id=self.request.user.id)
             return JsonResponse({"Message": "Заказ успешно размещен"}, status=200)
-        return JsonResponse({"Errors": "Корзина не найдена"}, status=400)
