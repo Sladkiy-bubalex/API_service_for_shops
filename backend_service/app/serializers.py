@@ -1,14 +1,27 @@
 import re
+
 from rest_framework import serializers
+
 from django.contrib.auth import authenticate
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.http import Http404
+
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import AllowAny, IsAuthenticated
+
 from app.models import (
     Contact, User, ConfirmEmailToken,
     Shop, Category, Product, ProductInfo,
     ProductParameter, Order, OrderItem
+)
+from app.permissions import (
+    IsShopOwnerOrAdmin,
+    IsProductOwnerOrAdmin,
+    IsProductParameterOwnerOrAdmin,
+    IsCategoryOwnerOrAdmin,
+    IsContactOwnerOrAdmin,
+    IsOrderOwnerOrAdmin
 )
 
 
@@ -37,6 +50,11 @@ class ContactSerializer(serializers.ModelSerializer):
         user = self.context["request"].user.id
         contact = Contact.objects.create(user_id=user, **validated_data)
         return contact
+    
+    def permission_classes(self):
+        if self.request.method == "GET":
+            return [AllowAny]
+        return [IsAuthenticated, IsContactOwnerOrAdmin]
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -48,7 +66,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "first_name", "last_name", "email", "company", "position", "is_active", "type"]
+        fields = ["id", "first_name", "last_name", "username", "email", "company", "position", "is_active", "type"]
         read_only_fields = ("id",)
 
 
@@ -179,6 +197,11 @@ class ProductParameterSerializer(serializers.ModelSerializer):
         model = ProductParameter
         fields = ["id", "product_info", "parameter", "value"]
         read_only_fields = ("id", "product_info", "parameter")
+    
+    def permission_classes(self):
+        if self.request.method == "GET":
+            return [AllowAny]
+        return [IsAuthenticated, IsProductParameterOwnerOrAdmin]
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -188,6 +211,11 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = ["id", "name", "categories"]
         read_only_fields = ("id",)
+    
+    def permission_classes(self):
+        if self.request.method == "GET":
+            return [AllowAny]
+        return [IsAuthenticated, IsProductOwnerOrAdmin]
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -197,6 +225,11 @@ class CategorySerializer(serializers.ModelSerializer):
         model = Category
         fields = ["id", "name", "shops"]
         read_only_fields = ("id",)
+    
+    def permission_classes(self):
+        if self.request.method == "GET":
+            return [AllowAny]
+        return [IsAuthenticated, IsCategoryOwnerOrAdmin]
 
 
 class ShopSerializer(serializers.ModelSerializer):
@@ -205,7 +238,12 @@ class ShopSerializer(serializers.ModelSerializer):
     class Meta:
         model = Shop
         fields = ["id", "name", "url", "user", "state"]
-        read_only_fields = ("id",)
+        read_only_fields = ("id", "user")
+    
+    def permission_classes(self):
+        if self.request.method == "GET":
+            return [AllowAny]
+        return [IsAuthenticated, IsShopOwnerOrAdmin]
 
 
 class ProductInfoSerializer(serializers.ModelSerializer):
@@ -289,6 +327,11 @@ class OrderItemSerializer(serializers.ModelSerializer):
                 }
             }
         }
+    
+    def permission_classes(self):
+        if self.request.method == "GET":
+            return [AllowAny]
+        return [IsAuthenticated , IsOrderOwnerOrAdmin]
 
 
 class OrderSerializer(serializers.ModelSerializer):
@@ -318,6 +361,9 @@ class OrderUpdateDestroySerializer(serializers.ModelSerializer):
     
     def update(self, instance: Order, validated_data: dict):
         """Метод обновления экземпляра Order"""
+
+        if self.request.user.type != "shop":
+            raise PermissionDenied("Только для магазинов")
 
         contact_data = validated_data.pop("contact", None)
         order_items_data = validated_data.pop("order_items", None)

@@ -21,6 +21,16 @@ class IsShopOwnerOrAdmin(BasePermission):
         return request.user.is_staff or obj.user == request.user
 
 
+class IsProductOwnerOrAdmin(BasePermission):
+    """
+    Пользователь может получить доступ к своим товарам или товарам других пользователей, если он администратор.
+    """
+
+    def has_object_permission(self, request, view, obj):
+        # Позволяем доступ, если пользователь является владельцем товара или администратором
+        return request.user.is_staff or obj.categories.user == request.user
+
+
 class IsProductInfoOwnerOrAdmin(BasePermission):
     """
     Пользователь может получить доступ к своим товарам или товарам других пользователей, если он администратор.
@@ -29,6 +39,16 @@ class IsProductInfoOwnerOrAdmin(BasePermission):
     def has_object_permission(self, request, view, obj):
         # Позволяем доступ, если пользователь является владельцем товара или администратором
         return request.user.is_staff or obj.shop.user == request.user
+
+
+class IsProductParameterOwnerOrAdmin(BasePermission):
+    """
+    Пользователь может получить доступ к своим параметрам товара или параметрами товара других пользователей, если он администратор.
+    """
+
+    def has_object_permission(self, request, view, obj):
+        # Позволяем доступ, если пользователь является владельцем параметра товара или администратором
+        return request.user.is_staff or obj.product_info.shop.user == request.user
 
 
 class IsCategoryOwnerOrAdmin(BasePermission):
@@ -48,4 +68,14 @@ class IsContactOwnerOrAdmin(BasePermission):
 
     def has_object_permission(self, request, view, obj):
         # Позволяем доступ, если пользователь является владельцем контакта или администратором
+        return request.user.is_staff or obj.user == request.user
+
+
+class IsOrderOwnerOrAdmin(BasePermission):
+    """
+    Пользователь может получить доступ к своим заказам или заказам других пользователей, если он администратор.
+    """
+
+    def has_object_permission(self, request, view, obj):
+        # Позволяем доступ, если пользователь является владельцем заказа или администратором
         return request.user.is_staff or obj.user == request.user
