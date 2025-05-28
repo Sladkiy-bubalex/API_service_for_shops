@@ -1,7 +1,7 @@
 import json
 
 from django.contrib.auth.password_validation import validate_password
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from django.core.exceptions import ValidationError
 from django.db.models import Q, Sum, F
 from django.db import transaction, IntegrityError
@@ -56,6 +56,7 @@ from app.serializers import (
     ProductInfoSerializer,
     ProductInfoUpdateDestroySerializer,
     OrderSerializer,
+    OrderUpdateDestroySerializer,
     OrderItemSerializer,
     ContactSerializer,
 )
@@ -328,16 +329,24 @@ class BasketListView(APIView):
                 basket = Order.objects.get_object_or_404(user_id=request.user.id, state="basket")
             except Http404:
                 return JsonResponse({"Errors": "Корзина не найдена"}, status=404)
-            order_items = []
+            update_items = 0
             # Вызываем конекстный менеджер для атомарности операции
             with transaction.atomic():
                 for item in items_basket:
-                    order_item = OrderItem.objects.get(order_id=basket.id, id=item["id"])
-                    order_item.quantity = item["quantity"]
-                    order_item.save()
-                    order_items.append(order_item)
+                    serializer = OrderItemSerializer(data=item)
+                    if serializer.is_valid():
+                        try:
+                            order_item = OrderItem.objects.get_object_or_404(order_id=basket.id, id=item["id"])
+                        except Http404:
+                            return JsonResponse({"Errors": "Элемент корзины не найден"}, status=404)
+                        else:
+                            order_item.quantity = item["quantity"]
+                            order_item.save()
+                            update_items += 1
+                    else:
+                        return JsonResponse({"Errors": serializer.errors}, status=400)
 
-            return JsonResponse({"Message": "Успешно", "Обновлено объектов": len(order_items)}, status=200)
+            return JsonResponse({"Message": "Успешно", "Обновлено объектов": update_items}, status=200)
         return JsonResponse({"Errors": "Не указаны все необходимые аргументы"}, status=400)
     
     def delete(self, request: Request):
@@ -355,17 +364,18 @@ class BasketListView(APIView):
 class ContactViewSet(ModelViewSet):
     """Класс для управления контактами"""
 
-    serializer_class = ContactSerializer
-    permission_classes = (IsAuthenticated, IsContactOwnerOrAdmin)
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["city", "street"]
-
     def get_queryset(self):
         # Если пользователь администратор, возвращаем все контакты
         if self.request.user.is_staff:
             return Contact.objects.all()
         # В противном случае возвращаем только контакты текущего пользователя
         return Contact.objects.filter(user=self.request.user)
+
+    serializer_class = ContactSerializer
+    permission_classes = (IsAuthenticated, IsContactOwnerOrAdmin)
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["city", "street"]
+
 
 
 class OrderView(ListCreateAPIView):
@@ -411,10 +421,12 @@ class OrderView(ListCreateAPIView):
 
 class PartnerOrderView(ListAPIView, UpdateAPIView):
     """Класс для получения и обновления заказов партнером"""
+
+    permission_classes = (IsAuthenticated,)
     
     def get_queryset(self):
         return Order.objects.filter(
-            ordered_items__product_info__shop__user_id=self.request.user.id
+            order_items__product_info__shop__user_id=self.request.user.id
             ).exclude(state='basket').prefetch_related(
             "order_items__product_info__product__categories",
             "order_items__product_info__product_parameters__parameter"
@@ -423,6 +435,11 @@ class PartnerOrderView(ListAPIView, UpdateAPIView):
                 F("order_items__quantity") *
                 F("order_items__product_info__price")
             )).distinct()
-    
-    serializer_class = OrderSerializer
-    permission_classes = (IsAuthenticated,)
+
+    def get_serializer_class(self):
+        # Используем OrderSerializer для GET запросов
+        if self.request.method == 'GET':
+            return OrderSerializer
+        # Используем OrderUpdateDestroySerializer для PATCH запросов
+        elif self.request.method in ['PATCH']:
+            return OrderUpdateDestroySerializer

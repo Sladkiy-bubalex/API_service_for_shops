@@ -56,6 +56,7 @@ urlpatterns = [
 
     path("api/v1/orders/", OrderView.as_view(), name="orders"),
     path("api/v1/orders/partner/", PartnerOrderView.as_view(), name="partner-orders"),
+    path("api/v1/orders/partner/<int:pk>", PartnerOrderView.as_view(), name="partner-order"),
 
     path("api/v1/", include(router.urls)),
 ]

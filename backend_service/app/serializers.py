@@ -4,6 +4,7 @@ from django.contrib.auth import authenticate
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.http import Http404
+from rest_framework.exceptions import PermissionDenied
 from app.models import (
     Contact, User, ConfirmEmailToken,
     Shop, Category, Product, ProductInfo,
@@ -45,11 +46,9 @@ class UserSerializer(serializers.ModelSerializer):
     company = serializers.CharField()
     position = serializers.CharField()
 
-    contact = ContactSerializer(read_only=True, many=True)
-
     class Meta:
         model = User
-        fields = ["id", "first_name", "last_name", "email", "company", "position", "is_active", "type", "contact"]
+        fields = ["id", "first_name", "last_name", "email", "company", "position", "is_active", "type"]
         read_only_fields = ("id",)
 
 
@@ -179,7 +178,7 @@ class ProductParameterSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductParameter
         fields = ["id", "product_info", "parameter", "value"]
-        read_only_fields = ("product_info", "parameter")
+        read_only_fields = ("id", "product_info", "parameter")
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -270,11 +269,13 @@ class ProductInfoUpdateDestroySerializer(serializers.ModelSerializer):
 
 class OrderItemSerializer(serializers.ModelSerializer):
     """Serializer для элемента заказа"""
+
+    id = serializers.IntegerField()
     
     class Meta:
         model = OrderItem
         fields = ["id", "order", "product_info", "quantity"]
-        read_only_fields = ("id",)
+        read_only_fields = ("id", "product_info")
         extra_kwargs = {
             "order": {
                 "write_only": True
@@ -301,3 +302,44 @@ class OrderSerializer(serializers.ModelSerializer):
         model = Order
         fields = ["id", "user", "state", "contact", "order_items", "total_sum"]
         read_only_fields = ("id",)
+
+
+class OrderUpdateDestroySerializer(serializers.ModelSerializer):
+    """Serializer для обновления и удаления заказа"""
+
+    contact = ContactSerializer()
+    order_items = OrderItemSerializer(many=True)
+    total_sum = serializers.IntegerField(read_only=True)
+    
+    class Meta:
+        model = Order
+        fields = ["id", "user", "state", "contact", "order_items", "total_sum"]
+        read_only_fields = ("id",)
+    
+    def update(self, instance: Order, validated_data: dict):
+        """Метод обновления экземпляра Order"""
+        
+        contact_data = validated_data.pop("contact", None)
+        order_items_data = validated_data.pop("order_items", None)
+        with transaction.atomic():
+            if contact_data:
+                contact_instance = instance.contact
+                ContactSerializer(contact_instance).update(contact_instance, contact_data)
+            
+            if order_items_data:
+                for data in order_items_data:
+                    try:
+                        order_item_instance = get_object_or_404(instance.order_items, id=data["id"])
+                        # Проверка на принадлежность товара магазину пользователя
+                        if order_item_instance.product_info.shop.user_id != self.context['request'].user.id:
+                            raise PermissionDenied(f"Вы не можете изменять товар c id={data['id']}, так как он не принадлежит вашему магазину.")
+                    except Http404:
+                        raise Http404(f"Элемент заказа c id={data['id']} не найден")
+                    OrderItemSerializer(order_item_instance).update(order_item_instance, data)
+                
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            
+            instance.save()
+        
+        return instance
