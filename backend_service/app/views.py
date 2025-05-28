@@ -119,14 +119,15 @@ class ImportItemView(APIView):
                     parameters = item.get("parameters")
                     if parameters is None:
                         return JsonResponse({"Error": "Отсутствуют параметры"}, status=400)
-
-                    for name, value in parameters.items():
-                        parameter, _ = Parameter.objects.get_or_create(name=name)
-                        product_parameters.append(ProductParameter(
-                            product_info=product_info,
-                            parameter=parameter,
-                            value=value
-                        ))
+                    
+                    for parameter in parameters:
+                        for name, value in parameter.items():
+                            parameter, _ = Parameter.objects.get_or_create(name=name)
+                            product_parameters.append(ProductParameter(
+                                product_info=product_info,
+                                parameter=parameter,
+                                value=value
+                            ))
 
                 # Пакетное создание объектов
                 ProductInfo.objects.bulk_create(product_infos)

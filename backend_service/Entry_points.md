@@ -632,3 +632,67 @@ header:{
         "total_sum": "Decimal"
     }
 ]
+```
+
+## Для загрузки данных из файла в формате .json (только для партнеров)
+- POST /api/v1/import/
+
+### Формат запроса
+
+```json
+header:{
+    "Authorization": "Token <token>" (обязательное)
+}
+
+body:{
+    "file": "file" (обязательное)
+}
+```
+
+## Формат файла
+
+```json
+{
+    "shop": "string",
+    "categories": [
+        {
+            "name": "string"
+        }
+    ],
+    "items": [
+        {
+            "name": "string",
+            "category": "integer",
+            "price": "decimal",
+            "price_rrc": "decimal",
+            "quantity": "integer",
+            "parameters":[
+            {
+                "name": "string"
+            }
+        ]
+    }
+]
+}
+
+```
+
+- shop - название магазина
+- categories - список категорий
+  - name - название категории
+- items - список товаров
+  - name - название товара
+  - category - id категории
+  - price - цена товара
+  - price_rrc - розничная цена товара
+  - quantity - количество товара
+  - parameters - список параметров товара
+    - name - название параметра
+
+### Формат ответа
+
+```json
+{
+    "Message": "Данные успешно импортированы"
+}
+```
