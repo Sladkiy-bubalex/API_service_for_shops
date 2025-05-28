@@ -300,46 +300,47 @@ class OrderSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Order
-        fields = ["id", "user", "state", "contact", "order_items", "total_sum"]
-        read_only_fields = ("id",)
+        fields = ["id", "user", "state", "dt", "contact", "order_items", "total_sum"]
+        read_only_fields = ("id", "dt")
 
 
 class OrderUpdateDestroySerializer(serializers.ModelSerializer):
     """Serializer для обновления и удаления заказа"""
 
-    contact = ContactSerializer()
+    contact = ContactSerializer(read_only=True)
     order_items = OrderItemSerializer(many=True)
     total_sum = serializers.IntegerField(read_only=True)
     
     class Meta:
         model = Order
-        fields = ["id", "user", "state", "contact", "order_items", "total_sum"]
-        read_only_fields = ("id",)
+        fields = ["id", "user", "state", "dt", "contact", "order_items", "total_sum"]
+        read_only_fields = ("id", "user", "dt")
     
     def update(self, instance: Order, validated_data: dict):
         """Метод обновления экземпляра Order"""
-        
+
         contact_data = validated_data.pop("contact", None)
         order_items_data = validated_data.pop("order_items", None)
         with transaction.atomic():
             if contact_data:
                 contact_instance = instance.contact
                 ContactSerializer(contact_instance).update(contact_instance, contact_data)
-            
+
             if order_items_data:
                 for data in order_items_data:
                     try:
                         order_item_instance = get_object_or_404(instance.order_items, id=data["id"])
                         # Проверка на принадлежность товара магазину пользователя
-                        if order_item_instance.product_info.shop.user_id != self.context['request'].user.id:
-                            raise PermissionDenied(f"Вы не можете изменять товар c id={data['id']}, так как он не принадлежит вашему магазину.")
+                        if order_item_instance.product_info.shop.user_id != self.context["request"].user.id:
+                            raise PermissionDenied(f"Вы не можете изменять товар c id={data["id"]}, так как он не принадлежит вашему магазину.")
                     except Http404:
-                        raise Http404(f"Элемент заказа c id={data['id']} не найден")
-                    OrderItemSerializer(order_item_instance).update(order_item_instance, data)
-                
+                        raise Http404(f"Элемент заказа c id={data["id"]} не найден")
+                    else:
+                        OrderItemSerializer(order_item_instance).update(order_item_instance, data)
+
             for attr, value in validated_data.items():
                 setattr(instance, attr, value)
-            
+
             instance.save()
-        
+
         return instance

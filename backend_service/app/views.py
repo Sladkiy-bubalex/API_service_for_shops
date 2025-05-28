@@ -423,23 +423,13 @@ class PartnerOrderView(ListAPIView, UpdateAPIView):
     """Класс для получения и обновления заказов партнером"""
 
     permission_classes = (IsAuthenticated,)
+    serializer_class = OrderUpdateDestroySerializer
     
     def get_queryset(self):
         return Order.objects.filter(
             order_items__product_info__shop__user_id=self.request.user.id
-            ).exclude(state='basket').prefetch_related(
-            "order_items__product_info__product__categories",
-            "order_items__product_info__product_parameters__parameter"
-            ).select_related("contact").annotate(
+            ).exclude(state='basket').annotate(
             total_sum=Sum(
                 F("order_items__quantity") *
                 F("order_items__product_info__price")
             )).distinct()
-
-    def get_serializer_class(self):
-        # Используем OrderSerializer для GET запросов
-        if self.request.method == 'GET':
-            return OrderSerializer
-        # Используем OrderUpdateDestroySerializer для PATCH запросов
-        elif self.request.method in ['PATCH']:
-            return OrderUpdateDestroySerializer
